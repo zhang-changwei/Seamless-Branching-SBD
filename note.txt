@@ -1,0 +1,48 @@
+Video:
+FrameRate:
+    1: 23.976, 2: 24, 3: 25, 4: 29.97
+
+
+# Disc > ClipInfo_Block > ClipInfo > LoopPGStream > ClipStreamInfo > OffsetFromVideo clip字幕时间偏移
+
+# Disc > PlayItem_Block > PlayItem > STN_table_Block > Loop_PG_textSTStream
+# STN_table_SS_Block 隐藏的应该是
+
+# Disc > Asset_Block > PGInfo > PG
+# LanguageCode, StartTime
+
+# StreamObjectType: v->3, a->4, s->5
+# ClipStreamType:   v->0, a->1, s->2
+
+<ClipStreamInfo>
+    <ParentObjectID>399</ParentObjectID>
+    <ClipStreamType>2</ClipStreamType>
+    <StreamAssetID>371</StreamAssetID>
+    <StreamObjectType>5</StreamObjectType>
+    <StreamTimeInfo>
+        <Offset>0</Offset>
+        <Duration>3052500</Duration>
+        <OffsetFromVideo>3420000</OffsetFromVideo>
+    </StreamTimeInfo>
+</ClipStreamInfo>
+
+'ID=399 clip 732, ID=603 clip 783'
+'ID=667 PlayItem'
+'ID=249 741fra.pes' # 187500 = 2083ms # 187500 = 
+
+# PlayItem
+'''
+RefToStreamPIDofMainClip: 
+    Vid: 4113 #0x 1011
+    Aud: 4352, 4353 1st, 2nd #0x1100, 0x1101
+    PG:  4608, 4609 # 0x1200, 0x1201
+'''
+
+video: clipPTS/3750 = frame (videoinfo)
+audio: duration (audioinfo & clipPTS)
+pg: duration (pginfo & clipPTS)
+playitem: piPTS/1875 = frame
+
+# connection_condition: 1: Not Seamless, 5: Seamless, 6: Seamless Concatenated
+
+当没有子元素时 if ET.Element -> False
