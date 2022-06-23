@@ -5,15 +5,18 @@ from tkinter import filedialog
 from tkinter import messagebox
 import xml.etree.ElementTree as ET
 from assets import *
+from medium import BluRay, UHDBluRay
 from timeutil import *
 from sorttracks import TrackSort
 from table import Table
+from config import P
 
 class App:
 
     def __init__(self):
         self.ui = tk.Tk()
-        self.ui.title('Scenarist Ctrl Gui')
+        self.ui.title('Seamless Branching SBD/SUHD')
+        self.ui.protocol('WM_DELETE_WINDOW', self.close)
 
         self.showBasic()
         self.showButtons()
@@ -26,8 +29,12 @@ class App:
         self.playItems:list[PlayItem] = []
         self.clips:list[Clip] = []
 
-        self.ui.bind('<<CeilClick>>', self.updateInfo)
+        self.ui.bind('<<CellClick>>', self.updateInfo)
         self.ui.mainloop()
+
+    def close(self):
+        P.tojson()
+        self.ui.destroy()
 
     def openSBDPRJ(self):
         sbdprjPath = filedialog.askopenfilename(title='Open Sbdprj Project', filetypes=[('sbdprj file', '*.sbdprj')])
@@ -100,7 +107,8 @@ class App:
         ttk.Label(gridT, text='PlayList').grid(row=0, column=0, padx=5, pady=(5, 2))
         self.playListDropdown = ttk.Combobox(gridT, textvariable=self.playListVar, values=[], state='readonly')
         self.playListDropdown.grid(row=0, column=1, padx=5, pady=(5, 2))
-        # ttk.Button(gridT, text='Import PlayItems from BDInfo', command=self.importBDInfo).grid(row=0, column=2, padx=5, pady=(5, 2))
+        ttk.Button(gridT, text='Reorder PlayItems by BDInfo', width=25,  command=self.reorderPlayItemByBDInfo) \
+            .grid(row=0, column=2, padx=5, pady=(5, 2))
 
         self.playListDropdown.bind('<<ComboboxSelected>>', self.selectPlayList)
 
@@ -118,7 +126,11 @@ class App:
         ttk.Label(gridB, text='Audio').grid(row=0, column=1, pady=(0, 2), sticky='n')
         ttk.Label(gridB, text='PG').grid(row=2, column=1, sticky='n')
 
-        self.tableAsset = ttk.Treeview(gridB1, columns=['type', 'name', 'index', 'pos'], displaycolumns=['type', 'name', 'index'], show='headings', height=20)
+        self.tableAsset = ttk.Treeview(gridB1, 
+                                       columns=['type', 'name', 'index', 'pos'], 
+                                       displaycolumns=['type', 'name', 'index'], 
+                                       show='headings', 
+                                       height=P.ui['Asset']['MaxRow']) # 20
         self.tableAsset.grid(row=1, column=0, sticky='news')
         scrollY = ttk.Scrollbar(gridB1, orient='vertical', command=self.tableAsset.yview)
         scrollY.grid(row=1, column=1, sticky='ns')
@@ -133,9 +145,15 @@ class App:
         self.tableAsset.heading('index', text='index', command=lambda x=2: self.sortAsset(x))
         self.tableAsset.column('index', width=50, stretch=False)
 
-        self.tableAudio = tk.Canvas(self.gridB2, width=560, height=170, scrollregion=(0, 0, 2000, 670))
+        self.tableAudio = tk.Canvas(self.gridB2, 
+                                    width=P.ui['Table']['Width'], # 560
+                                    height=P.ui['Table']['Height'], # 170
+                                    scrollregion=(0, 0, 2000, 670))
         self.tableAudio.pack()
-        self.tablePG = tk.Canvas(self.gridB3, width=560, height=170, scrollregion=(0, 0, 2000, 670))
+        self.tablePG = tk.Canvas(self.gridB3, 
+                                width=P.ui['Table']['Width'], # 560
+                                height=P.ui['Table']['Height'], # 170
+                                scrollregion=(0, 0, 2000, 670))
         self.tablePG.pack()
 
     def showButtons(self):
@@ -166,6 +184,8 @@ class App:
             .grid(row=0, column=0, padx=4, pady=2, sticky='we')
         ttk.Button(gridB2, text='Set PG Language Code', command=self.setPGLanguageCode) \
             .grid(row=1, column=0, padx=4, pady=2, sticky='we')
+        # ttk.Button(gridB2, text='Set Sequential PlayItems', command=self.setSeqPlayItem) \
+        #     .grid(row=2, column=0, padx=4, pady=2, sticky='we')
         ttk.Button(gridB2, text='Seamless Connection', command=self.setSeamless) \
             .grid(row=3, column=0, padx=4, pady=2, sticky='we')
 
@@ -247,10 +267,6 @@ class App:
                 tmp.append(si.languageCode + ',')
             self.pgData.append(tmp)
         # STN
-        self.audioOrder:dict[int, list] = {}
-        self.pgOrder:dict[int, list] = {}
-        self.audioOrderMeta:list[list[str, int, bool]] = []
-        self.pgOrderMeta:list[list[str, int, bool]] = []
         for i, pi in enumerate(self.playList.playItems):
             for ai in pi.playItemAudioInfs:
                 for j, aj in enumerate(pi.clip.audios):
@@ -342,6 +358,7 @@ class App:
             if pts2Frame(pi.clip.pgs[sel['row']].duration, self.fps) > (pi.duration)/1875:
                 print('[Warning] The PG clip is longer than clip#{} duration'.format(pi.clip.magicNum))
     def syncIntactAudioTimeInfo(self):
+        now = 0
         for sel in self.tableAudio.selected:
             pi = self.playList.playItems[sel['col']]
             # unit = pi.clip.audios[sel['row']].unitDuration
@@ -354,8 +371,9 @@ class App:
                 pi.clip.clipAudioInfos[sel['row']].duration = dur
             else:
                 raise ValueError('The audio clip in clip#{} is not long enough.'.format(pi.clip.magicNum))
-            start = frame2PTS(pi.intime/1875, self.fps, unit=1)
+            start = frame2PTS(now/1875, self.fps, unit=1)
             pi.clip.clipAudioInfos[sel['row']].offset = start
+            now += pi.duration
 
     def hideAudio(self):
         data = []
@@ -374,7 +392,7 @@ class App:
             data.append(sel['value'].split(',')[0] + ',')
         self.tablePG.setValue(data)
     def setAudioPID(self):
-        pid = input('Please input PID, it should look like these 4608, 0x1200: ')
+        pid = input('Please input PID, it should look like these 4352, 0x1100: ')
         if pid.startswith('0x'):
             pid = int(pid, base=16)
         else:
@@ -390,7 +408,7 @@ class App:
                 data.append(sel['value'])
         self.tableAudio.setValue(data)
     def setPGPID(self):
-        pid = input('Please input PID, it should look like these 4608, 0x1200: ')
+        pid = input('Please input PID, it should look like these 4608, 4768, 0x1200, 0x12A0: ')
         if pid.startswith('0x'):
             pid = int(pid, base=16)
         else:
@@ -517,31 +535,53 @@ class App:
             self.info['Duration'].set(clipPGInfo.duration)
             self.info['OffsetFromVideo'].set(clipPGInfo.offsetFromVideo)
 
-    def importBDInfo(self):
-        bdinfoPath = filedialog.askopenfilename(title='Open Sbdprj Project', filetypes=[('sbdprj file', '*.sbdprj')])
+    def reorderPlayItemByBDInfo(self):
+        bdinfoPath = filedialog.askopenfilename(title='Open BDInfo TXT', filetypes=[('Text File', '*.txt')])
         if bdinfoPath:
-            magicNums = []
+            tmpPlayItems:list[PlayItem] = []
+            tmpNodes: list[ET.Element] = []
+            inSet = []
             with open(bdinfoPath) as bdinfo:
                 for line in bdinfo.readlines():
                     mn = line.strip()[:5]
                     if len(mn) == 5 and mn.isnumeric():
-                        magicNums.append(mn)
-            if len(magicNums) != len(self.magicNums):
-                raise ValueError('Clip number is not correct.')
-            for i, mn in enumerate(magicNums):
-                for clip in self.clips:
-                    if clip.magicNum == mn:
-                        # how to deal with PID info in playItem
-                        pi = self.playList.playItems[i]
-                        pi.clip.delPlayItem(pi)
-                        pi.setClip(clip)
-                        pi.clip.setPlayItem(pi)
-                        break
+                        if mn in self.magicNums:
+                            ind = self.magicNums.index(mn)
+                            inSet.append(ind)
+                        else:
+                            print('[Warning] Cannot find Clip#{}'.format(mn))
+            outSet = set(range(self.numOfClip)).difference(inSet)
+            for ind in inSet:
+                pi = self.playList.playItems[ind]
+                tmpPlayItems.append(pi)
+                node = self.playList.node.find('PlayItemIDList')[ind]
+                tmpNodes.append(node)
+            for ind in outSet:
+                pi = self.playList.playItems[ind]
+                tmpPlayItems.append(pi)
+                node = self.playList.node.find('PlayItemIDList')[ind]
+                tmpNodes.append(node)
+            while True:
+                for i in self.playList.node.find('PlayItemIDList'):
+                    self.playList.node.find('PlayItemIDList').remove(i)
+                    break
                 else:
-                    raise ValueError(f'Cannot find clip related to {mn}.m2ts')
+                    break
+            self.playList.playItems = tmpPlayItems
+            self.playList.node.find('PlayItemIDList').extend(tmpNodes)
             self.selectPlayList()
 
-
+    def setSeqPlayItem(self):
+        now = input('Please input PlayItem in time, default is 0: ')
+        try:
+            now = int(now)
+        except:
+            now = 0
+        for pi in self.playList.playItems:
+            dur = pi.duration
+            pi.intime = now
+            pi.outtime = now + dur
+            now += dur
     def setSeamless(self):
         trigger = True
         for pi in self.playList.playItems:
@@ -573,8 +613,12 @@ class App:
         print('Success!')
 
     def unencrypt(self):
-        applicationVersion = self.discProjectInfo[0][0]
-        applicationVersion.text = '5.6.0.0000'
+        if P.medium.type_ == 'BluRay':
+            applicationVersion = self.discProjectInfo[0][0]
+            applicationVersion.text = '5.6.0.0000'
+        else:
+            applicationVersion = self.discProjectInfo[0][0]
+            applicationVersion.text = '8.0.0.0000'
         
 
 class MenuDisplay(tk.Menu):
@@ -583,11 +627,13 @@ class MenuDisplay(tk.Menu):
         def version():
             messagebox.showinfo('Version', 'Current Version: v0.0.1')
         def about():
-            messagebox.showinfo('About', 'Version: v0.0.1\nAuthor: chaaaaang\nCopyright (c): 2022 chaaaaang')
+            messagebox.showinfo('About', 'Version: v0.1.0\nAuthor: chaaaaang\nCopyright (c): 2022 chaaaaang')
 
         self.parent = parent
         super().__init__(master, tearoff=False)
         master.config(menu=self)
+
+        self.mediumVar = tk.StringVar(value=P.medium.type_)
 
         self.fileMenu = tk.Menu(master=self, tearoff=False)
         self.optionMenu = tk.Menu(master=self, tearoff=False)
@@ -603,6 +649,9 @@ class MenuDisplay(tk.Menu):
         self.fileMenu.add_command(label='Close', command=self.close)
 
         self.optionMenu.add_command(label='Set BDID', command=self.setBDID)
+        self.optionMenu.add_separator()
+        self.optionMenu.add_radiobutton(label='BluRay', value='BluRay', variable=self.mediumVar, command=self.changeMedium)
+        self.optionMenu.add_radiobutton(label='UHD BluRay', value='UHD BluRay', variable=self.mediumVar, command=self.changeMedium)
 
         self.helpMenu.add_command(label='Version', command=version)
         self.helpMenu.add_command(label='About', command=about)
@@ -623,10 +672,16 @@ class MenuDisplay(tk.Menu):
             self.parent.tree.write(outputPath, encoding='utf-8', xml_declaration=True)
 
     def close(self):
-        self.parent.ui.destroy()
+        self.parent.close()
 
     def setBDID(self):
         self.parent.setBDID()
+
+    def changeMedium(self):
+        if self.mediumVar.get() == 'BluRay':
+            P.medium = BluRay()
+        else:
+            P.medium = UHDBluRay()
 
 class TopUniversalDisplay(tk.Toplevel):
 
@@ -669,5 +724,3 @@ class TopYesNoDisplay(TopUniversalDisplay):
         self.master.event_generate('<<YesNo>>')
 
         
-if __name__ == '__main__':
-    App()

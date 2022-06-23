@@ -1,0 +1,16 @@
+{
+    "medium": "UHD BluRay",
+    "ui": {
+        "TrackSort": {
+            "MaxRow": 16
+        },
+        "Asset": {
+            "MaxRow": 20
+        },
+        "Table": {
+            "CellWidth": 63,
+            "Width": 560,
+            "Height": 170
+        }
+    }
+}

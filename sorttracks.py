@@ -3,13 +3,14 @@ from tkinter import ttk
 from tkinter import filedialog
 from assets import *
 from typing import Union
+from config import P
 
 class TrackSort(ttk.Treeview):
 
     def __init__(self, master, magicNums:list[str], assets:Union[list[Audio],list[PG]]):
         self.assets = assets
         super().__init__(master, columns=['clip', 'asset'], 
-                        height=min(len(magicNums), 16),
+                        height=min(len(magicNums), P.ui['TrackSort']['MaxRow']), # 16
                         selectmode='browse',
                         show='headings')
         self.heading('clip', text='clip')

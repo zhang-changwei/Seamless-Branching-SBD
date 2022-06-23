@@ -3,51 +3,8 @@ import xml.etree.ElementTree as ET
 from typing import Union, Optional
 import os
 import re
+from config import P
 
-# for assets
-def magicNum(x:str):
-    '''FilePath'''
-    tmp = os.path.split(x)[1]
-    mn = tmp[:5]
-    if mn.isnumeric():
-        return mn
-def index(x:str):
-    '''FilePath'''
-    tmp = os.path.split(x)[1]
-    mn = tmp[:5]
-    ind = x.split('.')[0][-2:]
-    if mn.isnumeric() and ind.isnumeric():
-        return int(ind)
-def magicNumPG(x:str):
-    '''FilePath'''
-    if 'slice' in x and 'clip' in x:
-        mn = x.split('.')[-2][-5:]
-        return mn
-    tmp = os.path.split(x)[1]
-    mn = tmp[:5]
-    if mn.isnumeric():
-        return mn
-def indexPG(x:str):
-    '''FilePath'''
-    if 'slice' in x and 'clip' in x:
-        return
-    try:
-        tmp = os.path.split(x)[1]
-        mn = tmp[:5]
-        ind = x.split('.')[0].split('_')[2]
-        if mn.isnumeric() and ind.isnumeric():
-            return int(ind)
-    except:
-        pass
-def magicNumClip(x:str):
-    '''Name'''
-    mn = x[:5]
-    if mn.isnumeric():
-        return mn
-    match = re.search('Clip#(\d+)', x, flags=re.I)
-    if match:
-        mn = '%05d' % int(match.group(1))
-        return mn
 
 class Video:
 
@@ -58,8 +15,8 @@ class Video:
         self.type = 'Video'
         self.id = node.attrib['ID']
         self.name = node.find('Name').text
-        self.magicNum = magicNum(node.find('FilePath').text)
-        self.index = index(node.find('FilePath').text)
+        self.magicNum = P.medium.magicNum(node.find('FilePath').text)
+        self.index = P.medium.index(node.find('FilePath').text)
         self.languageCode = 'und'
         self.fps = self.FPS[node.find('FrameRate').text]
 
@@ -70,8 +27,8 @@ class Audio:
         self.type = 'Audio'
         self.id = node.attrib['ID']
         self.name = node.find('Name').text
-        self.magicNum = magicNum(node.find('FilePath').text)
-        self.index = index(node.find('FilePath').text)
+        self.magicNum = P.medium.magicNum(node.find('FilePath').text)
+        self.index = P.medium.index(node.find('FilePath').text)
         self.duration = int(node.find('Duration').text)
         tmp = node.find('UnitDuration')
         if tmp != None:
@@ -94,8 +51,8 @@ class PG:
         self.type = 'PG'
         self.id = node.attrib['ID']
         self.name = node.find('Name').text
-        self.magicNum = magicNumPG(node.find('FilePath').text)
-        self.index = indexPG(node.find('FilePath').text)
+        self.magicNum = P.medium.magicNumPG(node.find('FilePath').text)
+        self.index = P.medium.indexPG(node.find('FilePath').text)
         self.start = int(node.find('StartTime').text)
         self.end = int(node.find('EndTime').text)
         self.duration = self.end - self.start
@@ -135,7 +92,7 @@ class Clip:
     def __init__(self, node:ET.Element):
         self.node = node
         self.id = node.attrib['ID']
-        self.magicNum = magicNumClip(node.find('Name').text)
+        self.magicNum = P.medium.magicNumClip(node.find('Name').text)
         self.playItems:list = [] # playList ID: playItem
         self.videos:list[Video] = []
         self.audios:list[Audio] = []
@@ -236,7 +193,7 @@ class Clip:
         node.tail = '\n' + '  ' * 4
         n1 = formatter('PlayListID', playItem.playListid, 6)
         n2 = formatter('PlayItemID', playItem.id, 6)
-        n3 = formatter('AngleID', '0', 5) # it should always be 0. At least seams so.
+        n3 = formatter('AngleID', '0', 5) # it should always be 0. At least seems so.
         node.extend([n1, n2, n3])
         return node
 
@@ -265,6 +222,7 @@ class Clip:
                     self.pgs.append(si)
                     break
 
+    # unused
     def setPlayItem(self, playItem):
         for pl, pi in self.playItems:
             if pi is playItem:
@@ -365,9 +323,6 @@ class PlayItem:
         self.node = node
         self.id = node.attrib['ID']
         self.playListid = node.find('ParentObjectID')
-        self.intime = int(node.find('IN_time').text)
-        self.outtime = int(node.find('OUT_time').text)
-        self.duration = self.outtime - self.intime
         self.clip:Optional[Clip] = None
         n = node.find('STN_table_Block/Loop_PrimaryAudioStream')
         if len(n) == 0:
@@ -387,6 +342,22 @@ class PlayItem:
             self.playItemPGInfs.append(PlayItemStreamInf(i))
         for i in node.find('STN_table_SS_Block/Loop_PG_textSTStream'):
             self.pgSSEntries.append(PlayItemStreamInf(i))
+
+    @property
+    def intime(self):
+        return int(self.node.find('IN_time').text)
+    @intime.setter
+    def intime(self, value:int):
+        self.node.find('IN_time').text = str(value)
+    @property
+    def outtime(self):
+        return int(self.node.find('OUT_time').text)
+    @outtime.setter
+    def outtime(self, value:int):
+        self.node.find('OUT_time').text = str(value)
+    @property
+    def duration(self):
+        return self.outtime - self.intime
 
     @property
     def connection(self):
@@ -427,6 +398,7 @@ class PlayItem:
                 self.clip = c
                 c.playItems.append([self.playListid, self])
                 break
+    # unused
     def setClip(self, clip:Clip):
         self.node.find('clip_info_id_ref').text = clip.id
         self.clip = clip

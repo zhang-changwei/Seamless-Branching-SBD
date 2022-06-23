@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
 from tkinter import messagebox
+from config import P
 
 class Table:
 
@@ -22,7 +23,9 @@ class Table:
             a= int(-(event.delta)/60)
             self.canvas.xview_scroll(a, 'units')
 
-        maxwidth = 63 * (1 + self.colCount)
+        width = P.ui['Table']['Width']
+        height = P.ui['Table']['Height']
+        maxwidth = (1 + self.colCount) * P.ui['Table']['CellWidth']
         self.canvas = tk.Canvas(master, width=width, height=height, scrollregion=(0, 0, maxwidth, 670))
 
         self.middle = ttk.Frame(self.canvas)
@@ -94,7 +97,7 @@ class Table:
                 row = event.widget.index(iid)
                 value = event.widget.item(iid, 'values')[0]
                 self.selectedNew = {'row': row, 'col': colInd, 'iid': iid, 'value': value}
-                self.rowHeadTab.event_generate('<<CeilClick>>')
+                self.rowHeadTab.event_generate('<<CellClick>>')
     def selectAllClear(self):
         for coltab in self.tabs:
             tmp = coltab.selection()
